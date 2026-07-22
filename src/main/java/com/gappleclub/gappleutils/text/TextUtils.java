@@ -281,6 +281,61 @@ public final class TextUtils {
         return toLegacySection(parse(body, player)) + suffix;
     }
 
+    /**
+     * Sustituye marcadores en una plantilla, de forma literal.
+     *
+     * <p>Existe por un fallo concreto y repetido: {@code String.replaceAll} interpreta el
+     * <b>reemplazo</b> como expresion regular, asi que la barra invertida y el dolar son
+     * especiales. Si el valor viene de lo que escribe un jugador, un nombre con {@code $1}
+     * corrompe el mensaje y uno acabado en {@code \} lanza
+     * {@code IllegalArgumentException}. Encadenar {@code replace} es seguro pero recorre
+     * el texto una vez por marcador y es facil equivocarse de metodo.</p>
+     *
+     * <p>Los pares son clave y valor, con la clave tal cual aparece en la plantilla, para
+     * no imponer una convencion de delimitadores:</p>
+     *
+     * <pre>{@code
+     * TextUtils.fill("%prefix% %player% gano %amount%", "%prefix%", prefix,
+     *                "%player%", nombre, "%amount%", String.valueOf(cantidad));
+     * }</pre>
+     *
+     * <p>Un valor {@code null} se sustituye por texto vacio. Para texto que ya trabaja con
+     * {@link Component}, es preferible {@link #parse(String, TagResolver...)} con
+     * {@code Placeholder.unparsed}, que ademas impide inyectar formato.</p>
+     *
+     * @throws IllegalArgumentException si el numero de argumentos es impar
+     */
+    public static String fill(String template, String... pairs) {
+        if (template == null || template.isEmpty()) {
+            return "";
+        }
+        if (pairs == null || pairs.length == 0) {
+            return template;
+        }
+        if (pairs.length % 2 != 0) {
+            throw new IllegalArgumentException("fill() espera pares clave/valor, recibio " + pairs.length + " argumentos");
+        }
+
+        StringBuilder out = new StringBuilder(template);
+        for (int i = 0; i < pairs.length; i += 2) {
+            String key = pairs[i];
+            if (key == null || key.isEmpty()) {
+                continue;
+            }
+            String value = pairs[i + 1] == null ? "" : pairs[i + 1];
+
+            // Se avanza por el indice del reemplazo para no volver a mirar lo ya sustituido:
+            // si no, un valor que contenga su propia clave entraria en bucle.
+            int from = 0;
+            int at;
+            while ((at = out.indexOf(key, from)) >= 0) {
+                out.replace(at, at + key.length(), value);
+                from = at + value.length();
+            }
+        }
+        return out.toString();
+    }
+
     /** Serializa un componente a codigos legacy con {@code §}, el formato que espera Bukkit. */
     public static String toLegacySection(Component component) {
         return component == null ? "" : LEGACY_SECTION.serialize(component);

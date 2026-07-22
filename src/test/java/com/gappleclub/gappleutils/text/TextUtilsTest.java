@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TextUtilsTest {
@@ -112,6 +113,58 @@ class TextUtilsTest {
         void nullYVacioSonSeguros() {
             assertEquals("", TextUtils.colorize(null));
             assertEquals("", TextUtils.colorize(""));
+        }
+    }
+
+    @Nested
+    @DisplayName("fill (sustitucion literal)")
+    class Fill {
+
+        @Test
+        void sustituyeVariosMarcadores() {
+            assertEquals("Pepe gano 5",
+                    TextUtils.fill("%player% gano %amount%", "%player%", "Pepe", "%amount%", "5"));
+        }
+
+        @Test
+        void sustituyeTodasLasApariciones() {
+            assertEquals("a a a", TextUtils.fill("%x% %x% %x%", "%x%", "a"));
+        }
+
+        @Test
+        @DisplayName("un valor acabado en barra invertida no lanza")
+        void barraInvertidaFinal() {
+            // Es el caso que reventaba con replaceAll: "character to be escaped is missing".
+            assertEquals("attack_damage\\ no vale",
+                    TextUtils.fill("%arg% no vale", "%arg%", "attack_damage\\"));
+        }
+
+        @Test
+        @DisplayName("un valor con $1 no se interpreta como grupo de captura")
+        void dolarNoEsGrupo() {
+            assertEquals("Nolber$1 entro", TextUtils.fill("%player% entro", "%player%", "Nolber$1"));
+        }
+
+        @Test
+        @DisplayName("un valor que contiene su propia clave no entra en bucle")
+        void valorQueContieneLaClave() {
+            assertEquals("%x%y", TextUtils.fill("%x%", "%x%", "%x%y"));
+        }
+
+        @Test
+        void valorNuloSeVuelveVacio() {
+            assertEquals("hola ", TextUtils.fill("hola %x%", "%x%", null));
+        }
+
+        @Test
+        void entradasVaciasSonSeguras() {
+            assertEquals("", TextUtils.fill(null, "%x%", "y"));
+            assertEquals("sin cambios", TextUtils.fill("sin cambios"));
+        }
+
+        @Test
+        void numeroImparDeArgumentosEsUnError() {
+            assertThrows(IllegalArgumentException.class, () -> TextUtils.fill("x", "%a%"));
         }
     }
 
