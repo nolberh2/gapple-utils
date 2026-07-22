@@ -1,0 +1,3 @@
+# JitPack usa un JDK antiguo por defecto y el build fallaria sin esto.
+jdk:
+  - openjdk21
