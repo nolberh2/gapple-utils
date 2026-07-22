@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -174,6 +176,22 @@ class CommandUtilsTest {
             assertThrows(CommandException.class,
                     () -> CommandUtils.requireDuration(new String[]{"10x"}, 0));
             assertEquals(60000, CommandUtils.requireDuration(new String[]{"1m"}, 0));
+        }
+    }
+
+    @Nested
+    @DisplayName("Aborto silencioso")
+    class Silencioso {
+
+        @Test
+        void noLlevaMensaje() {
+            // execute() no debe intentar enviar nada cuando el mensaje es null.
+            assertNull(CommandException.silent().componentMessage());
+        }
+
+        @Test
+        void reutilizaLaMismaInstancia() {
+            assertSame(CommandException.silent(), CommandException.silent());
         }
     }
 

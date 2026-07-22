@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -83,10 +84,14 @@ public final class CommandUtils {
         try {
             body.run();
         } catch (CommandException e) {
-            sender.sendMessage(e.componentMessage());
+            if (e.componentMessage() != null) {
+                sender.sendMessage(e.componentMessage());
+            }
         } catch (RuntimeException e) {
-            Bukkit.getLogger().warning("[GappleUtils] Error ejecutando un comando: " + e);
-            TextUtils.send(sender, "<#E5534B>Ha ocurrido un error al ejecutar el comando.");
+            // Con la traza: sin ella, un bug real queda invisible y solo se ve el mensaje
+            // generico que recibe el jugador.
+            Bukkit.getLogger().log(Level.SEVERE, "[GappleUtils] Error ejecutando un comando", e);
+            TextUtils.send(sender, messages.getInternalError());
         }
         return true;
     }

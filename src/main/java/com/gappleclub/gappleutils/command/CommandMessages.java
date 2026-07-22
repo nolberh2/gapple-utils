@@ -29,6 +29,8 @@ public class CommandMessages {
     private String invalidDuration = "<#E5534B><#E8A33D><arg><#E5534B> no es una duracion valida. Ejemplo: <#E8A33D>1d2h30m";
     /** Placeholders: {@code <arg>}, {@code <options>} */
     private String invalidOption = "<#E5534B>Opcion invalida: <#E8A33D><arg><#E5534B>. Validas: <#9AA3B2><options>";
+    /** Se muestra cuando el comando lanza una excepcion inesperada. La traza va al log. */
+    private String internalError = "<#E5534B>Ha ocurrido un error al ejecutar el comando.";
 
     public String getNoPermission() {
         return noPermission;
@@ -108,6 +110,15 @@ public class CommandMessages {
 
     public CommandMessages setInvalidOption(String value) {
         this.invalidOption = value;
+        return this;
+    }
+
+    public String getInternalError() {
+        return internalError;
+    }
+
+    public CommandMessages setInternalError(String value) {
+        this.internalError = value;
         return this;
     }
 }
