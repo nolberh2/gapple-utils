@@ -11,6 +11,12 @@ import net.kyori.adventure.text.Component;
  */
 public class CommandException extends RuntimeException {
 
+    /**
+     * Instancia unica para los abortos sin mensaje. No lleva estado ni stacktrace, asi
+     * que compartirla evita crear un objeto por cada validacion fallida.
+     */
+    private static final CommandException SILENT = new CommandException(null);
+
     private final transient Component message;
 
     public CommandException(Component message) {
@@ -19,7 +25,18 @@ public class CommandException extends RuntimeException {
         this.message = message;
     }
 
-    /** Mensaje listo para enviar al sender. */
+    /**
+     * Aborta el comando sin enviar nada.
+     *
+     * <p>Para codigo que ya tiene su propio sistema de mensajes y solo necesita cortar la
+     * ejecucion. Permite adoptar {@link CommandUtils#execute} en un plugin que ya existe
+     * sin tener que reescribir como emite sus mensajes.</p>
+     */
+    public static CommandException silent() {
+        return SILENT;
+    }
+
+    /** Mensaje listo para enviar al sender, o {@code null} si el aborto es silencioso. */
     public Component componentMessage() {
         return message;
     }

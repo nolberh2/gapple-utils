@@ -33,6 +33,13 @@ public final class TextUtils {
             .useUnusualXRepeatedCharacterHexFormat()
             .build();
 
+    /** Igual pero con '§', que es lo que espera la API String de Bukkit. */
+    private static final LegacyComponentSerializer LEGACY_SECTION = LegacyComponentSerializer.builder()
+            .character('§')
+            .hexColors()
+            .useUnusualXRepeatedCharacterHexFormat()
+            .build();
+
     /** Mitad del ancho util del chat, en pixeles. Es el estandar de facto para centrar. */
     private static final int CHAT_WIDTH_PX = 154;
 
@@ -46,6 +53,12 @@ public final class TextUtils {
             "<dark_gray>", "<blue>", "<green>", "<aqua>",
             "<red>", "<light_purple>", "<yellow>", "<white>"
     };
+
+    private static final String RESET = "<reset>";
+
+    /** Racha de codigos legacy al final del string, sin texto detras. */
+    private static final Pattern TRAILING_CODES =
+            Pattern.compile("((?:[&§](?:[0-9a-fk-orA-FK-OR]|#[0-9a-fA-F]{6}|[xX](?:[&§][0-9a-fA-F]){6}))+)$");
 
     private static final Pattern PLACEHOLDER = Pattern.compile("%([^%\\s]+)%");
     private static final Pattern MINI_TAG = Pattern.compile("<[#/a-zA-Z][^<>]*>");
@@ -182,7 +195,7 @@ public final class TextUtils {
             if ((code == 'x' || code == 'X') && i + 13 < len) {
                 String hex = readXHex(legacy, i);
                 if (hex != null) {
-                    out.append('<').append('#').append(hex).append('>');
+                    out.append(RESET).append('<').append('#').append(hex).append('>');
                     i += 14;
                     continue;
                 }
@@ -190,13 +203,20 @@ public final class TextUtils {
 
             // Hex directo: &#RRGGBB
             if (code == '#' && i + 7 < len && isHex(legacy, i + 2, 6)) {
-                out.append('<').append(legacy, i + 1, i + 8).append('>');
+                out.append(RESET).append('<').append(legacy, i + 1, i + 8).append('>');
                 i += 8;
                 continue;
             }
 
             String tag = tagFor(code);
             if (tag != null) {
+                // Semantica legacy: un codigo de COLOR resetea tambien el formato activo.
+                // Sin esto, "&4&lNombre &4texto" dejaria "texto" en negrita, porque en
+                // Adventure el color no arrastra el formato. Los codigos de formato
+                // (k-o) no resetean nada.
+                if (Character.digit(code, 16) >= 0) {
+                    out.append(RESET);
+                }
                 out.append(tag);
                 i += 2;
                 continue;
@@ -221,6 +241,104 @@ public final class TextUtils {
     /** Serializa un componente a codigos legacy con {@code &}. */
     public static String toLegacy(Component component) {
         return component == null ? "" : LEGACY.serialize(component);
+    }
+
+    /**
+     * Puente para codigo que todavia trabaja con {@code String} en vez de {@link Component}.
+     *
+     * <p>Acepta MiniMessage y legacy mezclados y devuelve un string con codigos {@code §},
+     * listo para {@code player.sendMessage(String)} o para un lore de item a la vieja usanza.
+     * Permite migrar un plugin gradualmente: se cambia el traductor de color sin tocar las
+     * firmas de los metodos que lo usan.</p>
+     *
+     * <p>Con perdida frente a {@link #parse(String)}: los gradientes se aproximan al color
+     * mas cercano y los eventos de click/hover se pierden, porque legacy no los representa.
+     * Para texto nuevo, usa {@link #parse(String)} y trabaja con componentes.</p>
+     */
+    public static String colorize(String input) {
+        return colorize(input, null);
+    }
+
+    /** Igual que {@link #colorize(String)} pero resolviendo antes PlaceholderAPI. */
+    public static String colorize(String input, Player player) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        // Los codigos sueltos al final del string no sobreviven al viaje por Component:
+        // sin texto detras no hay nada que colorear y el serializador los descarta. Son
+        // justo el caso de un "prefix" que termina en "&7" para tenir lo que se concatene
+        // despues, asi que se apartan y se vuelven a pegar al final.
+        Matcher trailing = TRAILING_CODES.matcher(input);
+        String body = input;
+        String suffix = "";
+        if (trailing.find()) {
+            suffix = codesToSection(trailing.group(1));
+            body = input.substring(0, trailing.start());
+        }
+        if (body.isEmpty()) {
+            return suffix;
+        }
+        return toLegacySection(parse(body, player)) + suffix;
+    }
+
+    /**
+     * Sustituye marcadores en una plantilla, de forma literal.
+     *
+     * <p>Existe por un fallo concreto y repetido: {@code String.replaceAll} interpreta el
+     * <b>reemplazo</b> como expresion regular, asi que la barra invertida y el dolar son
+     * especiales. Si el valor viene de lo que escribe un jugador, un nombre con {@code $1}
+     * corrompe el mensaje y uno acabado en {@code \} lanza
+     * {@code IllegalArgumentException}. Encadenar {@code replace} es seguro pero recorre
+     * el texto una vez por marcador y es facil equivocarse de metodo.</p>
+     *
+     * <p>Los pares son clave y valor, con la clave tal cual aparece en la plantilla, para
+     * no imponer una convencion de delimitadores:</p>
+     *
+     * <pre>{@code
+     * TextUtils.fill("%prefix% %player% gano %amount%", "%prefix%", prefix,
+     *                "%player%", nombre, "%amount%", String.valueOf(cantidad));
+     * }</pre>
+     *
+     * <p>Un valor {@code null} se sustituye por texto vacio. Para texto que ya trabaja con
+     * {@link Component}, es preferible {@link #parse(String, TagResolver...)} con
+     * {@code Placeholder.unparsed}, que ademas impide inyectar formato.</p>
+     *
+     * @throws IllegalArgumentException si el numero de argumentos es impar
+     */
+    public static String fill(String template, String... pairs) {
+        if (template == null || template.isEmpty()) {
+            return "";
+        }
+        if (pairs == null || pairs.length == 0) {
+            return template;
+        }
+        if (pairs.length % 2 != 0) {
+            throw new IllegalArgumentException("fill() espera pares clave/valor, recibio " + pairs.length + " argumentos");
+        }
+
+        StringBuilder out = new StringBuilder(template);
+        for (int i = 0; i < pairs.length; i += 2) {
+            String key = pairs[i];
+            if (key == null || key.isEmpty()) {
+                continue;
+            }
+            String value = pairs[i + 1] == null ? "" : pairs[i + 1];
+
+            // Se avanza por el indice del reemplazo para no volver a mirar lo ya sustituido:
+            // si no, un valor que contenga su propia clave entraria en bucle.
+            int from = 0;
+            int at;
+            while ((at = out.indexOf(key, from)) >= 0) {
+                out.replace(at, at + key.length(), value);
+                from = at + value.length();
+            }
+        }
+        return out.toString();
+    }
+
+    /** Serializa un componente a codigos legacy con {@code §}, el formato que espera Bukkit. */
+    public static String toLegacySection(Component component) {
+        return component == null ? "" : LEGACY_SECTION.serialize(component);
     }
 
     /** Serializa un componente a MiniMessage. */
@@ -428,6 +546,29 @@ public final class TextUtils {
             hex.append(digit);
         }
         return hex.toString();
+    }
+
+    /**
+     * Pasa una racha de codigos legacy a formato '§'. El hex {@code &#RRGGBB} no tiene
+     * equivalente directo y se expande al formato {@code §x§R§R§G§G§B§B} que entiende Bukkit.
+     */
+    private static String codesToSection(String codes) {
+        StringBuilder out = new StringBuilder(codes.length());
+        int i = 0;
+        while (i < codes.length()) {
+            char c = codes.charAt(i);
+            if ((c == '&' || c == '§') && i + 7 < codes.length() && codes.charAt(i + 1) == '#') {
+                out.append('§').append('x');
+                for (int j = i + 2; j < i + 8; j++) {
+                    out.append('§').append(Character.toLowerCase(codes.charAt(j)));
+                }
+                i += 8;
+                continue;
+            }
+            out.append(c == '&' ? '§' : c);
+            i++;
+        }
+        return out.toString();
     }
 
     private static boolean isHex(String s, int start, int count) {

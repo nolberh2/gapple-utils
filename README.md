@@ -4,7 +4,8 @@ Librería de utilidades compartidas para los plugins de Paper de GappleClub.
 Centraliza el formateo de texto, la paleta de colores de la marca y el parseo
 de argumentos de comandos, para no reescribir lo mismo en cada plugin.
 
-- **Java 21** · **Paper 1.21.4+** (compilada contra 1.21.4, compatible con 26.x)
+- **Java 17** · **Paper 1.20.4+** (compilada contra la API más vieja soportada, así corre
+  igual en 1.20.x, 1.21.x y 26.x)
 - PlaceholderAPI es **opcional**: si no está instalado, se degrada sin fallar.
 
 ---
@@ -25,7 +26,7 @@ de argumentos de comandos, para no reescribir lo mismo en cada plugin.
     <dependency>
         <groupId>com.github.nolberh2</groupId>
         <artifactId>gapple-utils</artifactId>
-        <version>v1.0.0</version>
+        <version>v1.0.1</version>
     </dependency>
 </dependencies>
 ```
@@ -38,7 +39,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.nolberh2:gapple-utils:v1.0.0'
+    implementation 'com.github.nolberh2:gapple-utils:v1.0.1'
 }
 ```
 
@@ -87,7 +88,7 @@ servidor; incluirlos causa clases duplicadas y errores raros de carga.
 |---|---|---|
 | `text` | `TextUtils` | Parseo MiniMessage + legacy `&` mezclados, PlaceholderAPI, strip, centrado de chat |
 | `color` | `ColorUtils` | Paleta de marca, gradientes multilínea y con fase, mezcla de colores |
-| `command` | `CommandUtils` | Parseo de argumentos con errores uniformes, duraciones, tab-complete |
+| `command` | `CommandUtils` | Envoltorio de ejecución con traza completa, y filtro de tab-complete |
 
 ### Paleta
 
@@ -107,11 +108,54 @@ chat del servidor y la web hablen el mismo idioma.
 | `WARNING` | `#E8A33D` |
 | `INFO` | `#6BA8E5` |
 
-### Mensajes de error de comandos
+### Migrar un plugin que trabaja con `String`
 
-Los `require*` de `CommandUtils` emiten mensajes en castellano por defecto.
-Para usar los tuyos (desde el YAML de tu plugin), llamá a `setMessages()` en el
-`onEnable()` **y en tu `/reload`**, o quedarán cacheados los viejos.
+Si el plugin todavía usa `player.sendMessage(String)` y códigos `§`, no hace falta
+reescribirlo para empezar a aprovechar MiniMessage. `TextUtils.colorize(String)` entra y
+sale en `String`:
+
+```java
+// antes
+public static String color(String text) { /* 60 líneas de regex */ }
+
+// después
+public static String color(String text) { return TextUtils.colorize(text); }
+```
+
+A partir de ahí, las configs del plugin aceptan MiniMessage y gradientes sin tocar una sola
+firma. Para texto nuevo, mejor `parse()` y trabajar con `Component`: `colorize()` pierde por
+el camino los gradientes (los aproxima al color más cercano) y los eventos de click/hover,
+porque legacy no sabe representarlos.
+
+### Comandos
+
+`CommandUtils` es deliberadamente pequeño: un envoltorio que captura los errores y un
+filtro de tab-complete. **No trae validación de argumentos ni mensajes de error propios.**
+
+Llegó a tenerlos —una familia de `require*` con su sistema de mensajes— y no los usó nadie:
+cada plugin ya tiene sus textos en el YAML, y unos mensajes fijos en la librería compiten
+con eso en vez de ayudar.
+
+Para validar, hazlo en el comando y corta con `CommandException`, que es lo que permite
+escribir el cuerpo en línea recta:
+
+```java
+public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+    return CommandUtils.execute(sender, () -> {
+        Player player = requireJugador(sender);   // tu guard, con tus mensajes
+        // ... lógica, sin un if de validación por argumento
+    });
+}
+
+private Player requireJugador(CommandSender sender) {
+    if (sender instanceof Player player) return player;
+    Mensajes.soloJugadores(sender);          // tu sistema de mensajes
+    throw CommandException.silent();          // corta sin enviar nada más
+}
+```
+
+`execute()` registra cualquier excepción inesperada **con su traza completa** en nivel
+`SEVERE` y responde al jugador con un aviso genérico.
 
 ---
 

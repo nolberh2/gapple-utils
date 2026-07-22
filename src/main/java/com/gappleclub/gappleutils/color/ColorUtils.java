@@ -116,7 +116,9 @@ public final class ColorUtils {
         int len = text.length();
         for (int i = 0; i < len; i++) {
             float t = (len == 1) ? 0f : (float) i / (len - 1);
-            builder.append(Component.text(text.charAt(i), colorAt(shift(t, phase), stops)));
+            // Sin fase no se envuelve: t=1 debe quedarse en 1 y dar el ultimo stop exacto,
+            // no dar la vuelta al degradado y repetir el primero en el ultimo caracter.
+            builder.append(Component.text(text.charAt(i), colorAt(phase == 0f ? t : shift(t, phase), stops)));
         }
         return builder.build();
     }
