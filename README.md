@@ -88,7 +88,7 @@ servidor; incluirlos causa clases duplicadas y errores raros de carga.
 |---|---|---|
 | `text` | `TextUtils` | Parseo MiniMessage + legacy `&` mezclados, PlaceholderAPI, strip, centrado de chat |
 | `color` | `ColorUtils` | Paleta de marca, gradientes multilínea y con fase, mezcla de colores |
-| `command` | `CommandUtils` | Parseo de argumentos con errores uniformes, duraciones, tab-complete |
+| `command` | `CommandUtils` | Envoltorio de ejecución con traza completa, y filtro de tab-complete |
 
 ### Paleta
 
@@ -127,11 +127,35 @@ firma. Para texto nuevo, mejor `parse()` y trabajar con `Component`: `colorize()
 el camino los gradientes (los aproxima al color más cercano) y los eventos de click/hover,
 porque legacy no sabe representarlos.
 
-### Mensajes de error de comandos
+### Comandos
 
-Los `require*` de `CommandUtils` emiten mensajes en castellano por defecto.
-Para usar los tuyos (desde el YAML de tu plugin), llamá a `setMessages()` en el
-`onEnable()` **y en tu `/reload`**, o quedarán cacheados los viejos.
+`CommandUtils` es deliberadamente pequeño: un envoltorio que captura los errores y un
+filtro de tab-complete. **No trae validación de argumentos ni mensajes de error propios.**
+
+Llegó a tenerlos —una familia de `require*` con su sistema de mensajes— y no los usó nadie:
+cada plugin ya tiene sus textos en el YAML, y unos mensajes fijos en la librería compiten
+con eso en vez de ayudar.
+
+Para validar, hazlo en el comando y corta con `CommandException`, que es lo que permite
+escribir el cuerpo en línea recta:
+
+```java
+public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+    return CommandUtils.execute(sender, () -> {
+        Player player = requireJugador(sender);   // tu guard, con tus mensajes
+        // ... lógica, sin un if de validación por argumento
+    });
+}
+
+private Player requireJugador(CommandSender sender) {
+    if (sender instanceof Player player) return player;
+    Mensajes.soloJugadores(sender);          // tu sistema de mensajes
+    throw CommandException.silent();          // corta sin enviar nada más
+}
+```
+
+`execute()` registra cualquier excepción inesperada **con su traza completa** en nivel
+`SEVERE` y responde al jugador con un aviso genérico.
 
 ---
 
