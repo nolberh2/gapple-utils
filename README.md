@@ -4,7 +4,8 @@ Librería de utilidades compartidas para los plugins de Paper de GappleClub.
 Centraliza el formateo de texto, la paleta de colores de la marca y el parseo
 de argumentos de comandos, para no reescribir lo mismo en cada plugin.
 
-- **Java 21** · **Paper 1.21.4+** (compilada contra 1.21.4, compatible con 26.x)
+- **Java 17** · **Paper 1.20.4+** (compilada contra la API más vieja soportada, así corre
+  igual en 1.20.x, 1.21.x y 26.x)
 - PlaceholderAPI es **opcional**: si no está instalado, se degrada sin fallar.
 
 ---
@@ -25,7 +26,7 @@ de argumentos de comandos, para no reescribir lo mismo en cada plugin.
     <dependency>
         <groupId>com.github.nolberh2</groupId>
         <artifactId>gapple-utils</artifactId>
-        <version>v1.0.0</version>
+        <version>v1.0.1</version>
     </dependency>
 </dependencies>
 ```
@@ -38,7 +39,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.nolberh2:gapple-utils:v1.0.0'
+    implementation 'com.github.nolberh2:gapple-utils:v1.0.1'
 }
 ```
 
@@ -106,6 +107,25 @@ chat del servidor y la web hablen el mismo idioma.
 | `ERROR` | `#E5534B` |
 | `WARNING` | `#E8A33D` |
 | `INFO` | `#6BA8E5` |
+
+### Migrar un plugin que trabaja con `String`
+
+Si el plugin todavía usa `player.sendMessage(String)` y códigos `§`, no hace falta
+reescribirlo para empezar a aprovechar MiniMessage. `TextUtils.colorize(String)` entra y
+sale en `String`:
+
+```java
+// antes
+public static String color(String text) { /* 60 líneas de regex */ }
+
+// después
+public static String color(String text) { return TextUtils.colorize(text); }
+```
+
+A partir de ahí, las configs del plugin aceptan MiniMessage y gradientes sin tocar una sola
+firma. Para texto nuevo, mejor `parse()` y trabajar con `Component`: `colorize()` pierde por
+el camino los gradientes (los aproxima al color más cercano) y los eventos de click/hover,
+porque legacy no sabe representarlos.
 
 ### Mensajes de error de comandos
 

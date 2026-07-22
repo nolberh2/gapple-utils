@@ -6,14 +6,19 @@
 
     <groupId>com.gappleclub</groupId>
     <artifactId>gapple-utils</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <name>GappleUtils</name>
     <description>Utilidades compartidas para los plugins de Paper de GappleClub</description>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <!--
+          Java 17, no 21: el codigo no usa nada posterior a 17 y compilar a 21 dejaba
+          fuera a los plugins que siguen en 17 (CoreFFA, entre otros). Un artefacto
+          Java 21 ni siquiera compila desde un proyecto con release 17.
+        -->
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -31,13 +36,14 @@
 
     <dependencies>
         <!--
-          Paper 1.21.4 a proposito, no 26.x: lo compilado contra 1.21.x corre en
-          servidores mas nuevos, pero no al reves. Fija la compatibilidad hacia abajo.
+          Se compila contra la API mas VIEJA que se quiere soportar, no la mas nueva:
+          lo compilado contra 1.20.4 corre en 1.20.x, 1.21.x y 26.x, pero no al reves.
+          Bajarla a 1.20.4 es lo que permite usar la libreria tambien en CoreFFA.
         -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.4-R0.1-SNAPSHOT</version>
+            <version>1.20.4-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
 
